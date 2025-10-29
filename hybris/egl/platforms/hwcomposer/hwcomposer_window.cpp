@@ -204,20 +204,15 @@ int HWComposerNativeWindow::dequeueBuffer(BaseNativeWindowBuffer** buffer, int *
     // Grabe the next available buffer in the list and assign m_nextBuffer to
     // the next one.
     HWComposerNativeWindowBuffer *b = m_bufList.at(m_nextBuffer);
-    TRACE("idx=%d, buffer=%p, fence=%d", m_nextBuffer, b, b->fenceFd);
-    *buffer = b;
+    TRACE("thread=%lu, idx=%d, buffer=%p, fence=%d", pthread_self(), m_nextBuffer, b, b->fenceFd);
     m_nextBuffer++;
     if (m_nextBuffer >= m_bufList.size())
         m_nextBuffer = 0;
 
-    // assign the buffer's fence to fenceFd and close/reset our fd.
-    int fence = b->fenceFd;
-    if (fenceFd)
-        *fenceFd = dup(fence);
-    if (fence != -1) {
-        close(b->fenceFd);
-        b->fenceFd = -1;
-    }
+    *buffer = b;
+    // Transfer the buffer's fence to fenceFd
+    *fenceFd = b->fenceFd;
+    b->fenceFd = -1;
 
     pthread_mutex_unlock(&m_mutex);
     HYBRIS_TRACE_END("hwcomposer-platform", "dequeueBuffer", "");
@@ -305,6 +300,8 @@ int HWComposerNativeWindow::cancelBuffer(BaseNativeWindowBuffer* buffer, int fen
 
     // Assign the fence so we can pass it on in dequeue when the buffer is
     // again acquired.
+    if (fbnb->fenceFd != -1)
+        close(fbnb->fenceFd);
     fbnb->fenceFd = fenceFd;
 
     pthread_mutex_unlock(&m_mutex);
