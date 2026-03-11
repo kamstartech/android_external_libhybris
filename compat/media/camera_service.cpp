@@ -23,13 +23,8 @@
 #include "media_recorder_factory.h"
 #include "media_recorder.h"
 
-#if (ANDROID_VERSION_MAJOR==5 && WANT_UBUNTU_CAMERA_HEADERS) || ANDROID_VERSION_MAJOR>=9
-#include <media/camera_record_service.h>
-#endif
+// camera_record_service.h no longer exists in Android 15
 
-#if ANDROID_VERSION_MAJOR<=5
-#include <CameraService.h>
-#endif
 #include <binder/BinderService.h>
 
 #include <signal.h>
@@ -45,18 +40,15 @@ int main()
 {
     signal(SIGPIPE, SIG_IGN);
 
-    ALOGV("Starting camera services (MediaRecorderFactory, CameraRecordService & CameraService)");
+    ALOGV("Starting camera services (MediaRecorderFactory)");
 
     // Instantiate the in-process MediaRecorderFactory which is responsible
     // for creating a new IMediaRecorder (MediaRecorder) instance over Binder
     MediaRecorderFactory::instantiate();
-    // Enable audio recording for camera recording
-#if (ANDROID_VERSION_MAJOR==5 && WANT_UBUNTU_CAMERA_HEADERS) || ANDROID_VERSION_MAJOR>=9
-    CameraRecordService::instantiate();
-#endif
-#if ANDROID_VERSION_MAJOR<=5
-    CameraService::instantiate();
-#endif
+    
+    // CameraRecordService and CameraService no longer exist in Android 15
+    // Camera functionality is now handled by the system CameraService
+    
     ProcessState::self()->startThreadPool();
     IPCThreadState::self()->joinThreadPool();
 }

@@ -9,6 +9,7 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_MODULE:= libsf_compat_layer
 LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_RELATIVE_PATH := 
 
 LOCAL_C_INCLUDES := \
 	$(HYBRIS_PATH)/include

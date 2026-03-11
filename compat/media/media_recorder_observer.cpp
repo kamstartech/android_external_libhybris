@@ -40,7 +40,12 @@
 
 namespace android {
 
+#if ANDROID_VERSION_MAJOR>=15
+// Android 15+ requires allowlist or use of _UNCHECKED variant
+DO_NOT_DIRECTLY_USE_ME_IMPLEMENT_META_INTERFACE(MediaRecorderObserver, "android.media.IMediaRecorderObserver");
+#else
 IMPLEMENT_META_INTERFACE(MediaRecorderObserver, "android.media.IMediaRecorderObserver");
+#endif
 
 status_t BnMediaRecorderObserver::onTransact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)

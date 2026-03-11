@@ -43,8 +43,14 @@ typedef void* EGLSyncKHR;
 
 namespace android {
 
+#if ANDROID_VERSION_MAJOR>=15
+// Android 15+ requires allowlist or use of _UNCHECKED variant
+DO_NOT_DIRECTLY_USE_ME_IMPLEMENT_META_INTERFACE(DecodingService, "android.media.IDecodingService");
+DO_NOT_DIRECTLY_USE_ME_IMPLEMENT_META_INTERFACE(DecodingServiceSession, "android.media.IDecodingServiceSession");
+#else
 IMPLEMENT_META_INTERFACE(DecodingService, "android.media.IDecodingService");
 IMPLEMENT_META_INTERFACE(DecodingServiceSession, "android.media.IDecodingServiceSession");
+#endif
 
 enum {
     GET_IGRAPHICBUFFERCONSUMER = IBinder::FIRST_CALL_TRANSACTION,

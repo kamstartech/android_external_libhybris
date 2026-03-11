@@ -16,6 +16,7 @@
 
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <string.h>
 
 #if ANDROID_VERSION_MAJOR>=10
 #include <ui/Gralloc.h>
@@ -25,6 +26,7 @@
 #include <ui/GraphicBufferAllocator.h>
 
 #include <hybris/ui/ui_compatibility_layer.h>
+#include <hybris/ui/ui.h>
 
 struct graphic_buffer
 {
@@ -221,3 +223,18 @@ status_t graphic_buffer_mapper_unlock(buffer_handle_t handle)
     return GraphicBufferMapper::getInstance().unlock(handle);
 }
 #endif // ANDROID_VERSION_MAJOR>=10
+
+// Android 15: UI initialization functions for dynamic loading
+void hybris_ui_initialize() {
+    // Initialize UI subsystem if needed
+    // For Android 15, GraphicBufferMapper is always available
+}
+
+bool hybris_ui_check_for_symbol(const char *sym) {
+    // Check if symbol is available
+    // For Android 15, we have GraphicBuffer allocator functions available
+    if (sym && strcmp(sym, "graphic_buffer_allocator_allocate") == 0) {
+        return true;
+    }
+    return false;
+}

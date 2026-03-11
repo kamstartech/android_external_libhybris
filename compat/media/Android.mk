@@ -87,6 +87,7 @@ LOCAL_32_BIT_ONLY := true
 LOCAL_MULTILIB := 32
 endif
 
+
 include $(BUILD_EXECUTABLE)
 
 # -------------------------------------------------
@@ -150,6 +151,7 @@ endif
 
 LOCAL_MODULE:= libmedia_compat_layer
 LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_RELATIVE_PATH := 
 
 LOCAL_SHARED_LIBRARIES := \
 	libcutils \
@@ -236,12 +238,7 @@ LOCAL_MODULE:= direct_media_test
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_C_INCLUDES := \
-	$(HYBRIS_PATH)/include \
-	bionic \
-	external/libcxx/include \
-	external/gtest/include \
-	external/skia/include/core \
-	frameworks/base/include
+	$(HYBRIS_PATH)/include
 
 LOCAL_SHARED_LIBRARIES := \
 	libis_compat_layer \
@@ -254,7 +251,8 @@ LOCAL_SHARED_LIBRARIES := \
 	libui \
 	libgui \
 	libEGL \
-	libGLESv2
+	libGLESv2 \
+	liblog
 
 ifdef TARGET_2ND_ARCH
 LOCAL_MULTILIB := both

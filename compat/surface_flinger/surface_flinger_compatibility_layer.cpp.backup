@@ -24,13 +24,17 @@
 
 #include <gui/SurfaceComposerClient.h>
 #include <gui/ISurfaceComposer.h>
+#if ANDROID_VERSION_MAJOR>=15
 #include <gui/DisplayInfo.h>
-#include <ui/DynamicDisplayInfo.h>
-#include <ui/StaticDisplayInfo.h>
+#else
+#include <ui/DisplayInfo.h>
+#endif
 #include <ui/PixelFormat.h>
 #include <ui/Region.h>
 #include <ui/Rect.h>
+#if ANDROID_VERSION_MAJOR>=5
 #include <hardware/hwcomposer_defs.h>
+#endif
 
 #include <cassert>
 #include <cstdio>
@@ -67,25 +71,9 @@ void report_surface_is_null_during_creation()
 	printf("Could not acquire surface from surface control during surface creation");
 }
 
-// Android 15 display helpers
-int64_t get_display_id(size_t display_index)
-{
-	auto displayIds = android::SurfaceComposerClient::getPhysicalDisplayIds();
-	if (displayIds.empty()) {
-		fprintf(stderr, "No physical displays found\n");
-		return -1;
-	}
-	
-	// display_index 0 = primary, 1 = external (if available)
-	if (display_index >= displayIds.size()) {
-		fprintf(stderr, "Invalid display_index %zu, using primary\n", display_index);
-		display_index = 0;
-	}
-	
-	return displayIds[display_index].value;
-}
-
-android::sp<android::IBinder> get_display_token(size_t display_index)
+#if ANDROID_VERSION_MAJOR>=15
+// Android 15+ display API helpers
+android::sp<android::IBinder> get_display_token(size_t display_id)
 {
 	auto displayIds = android::SurfaceComposerClient::getPhysicalDisplayIds();
 	if (displayIds.empty()) {
@@ -93,110 +81,165 @@ android::sp<android::IBinder> get_display_token(size_t display_index)
 		return nullptr;
 	}
 	
-	if (display_index >= displayIds.size()) {
-		fprintf(stderr, "Invalid display_index %zu, using primary\n", display_index);
-		display_index = 0;
+	// display_id 0 = primary, 1 = external (if available)
+	if (display_id >= displayIds.size()) {
+		fprintf(stderr, "Invalid display_id %zu\n", display_id);
+		return nullptr;
 	}
 	
-	return android::SurfaceComposerClient::getPhysicalDisplayToken(displayIds[display_index]);
+	return android::SurfaceComposerClient::getPhysicalDisplayToken(displayIds[display_id]);
 }
 
-bool get_display_dimensions(size_t display_index, int32_t* width, int32_t* height)
+bool get_display_info_android15(size_t display_id, android::gui::DisplayInfo* info)
 {
-	int64_t displayId = get_display_id(display_index);
-	if (displayId < 0) return false;
+	auto token = get_display_token(display_id);
+	if (token == nullptr) return false;
 	
-	android::ui::DynamicDisplayInfo dynamicInfo;
-	if (android::SurfaceComposerClient::getDynamicDisplayInfoFromId(displayId, &dynamicInfo) != android::NO_ERROR) {
+	android::ui::StaticDisplayInfo staticInfo;
+	if (android::SurfaceComposerClient::getStaticDisplayInfo(token, &staticInfo) != android::NO_ERROR) {
 		return false;
 	}
 	
-	// Get active display mode resolution (supportedDisplayModes is in DynamicDisplayInfo)
-	if (dynamicInfo.activeDisplayModeId >= 0) {
-		for (const auto& mode : dynamicInfo.supportedDisplayModes) {
-			if (mode.id == dynamicInfo.activeDisplayModeId) {
-				*width = mode.resolution.getWidth();
-				*height = mode.resolution.getHeight();
-				return true;
-			}
-		}
+	android::ui::DynamicDisplayInfo dynamicInfo;
+	if (android::SurfaceComposerClient::getDynamicDisplayInfo(token, &dynamicInfo) != android::NO_ERROR) {
+		return false;
 	}
 	
-	return false;
+	// Fill DisplayInfo from static and dynamic info
+	info->logicalWidth = dynamicInfo.activeDisplayModeId >= 0 && 
+	                     dynamicInfo.activeDisplayModeId < staticInfo.supportedDisplayModes.size() ?
+	                     staticInfo.supportedDisplayModes[dynamicInfo.activeDisplayModeId].resolution.getWidth() : 0;
+	info->logicalHeight = dynamicInfo.activeDisplayModeId >= 0 &&
+	                      dynamicInfo.activeDisplayModeId < staticInfo.supportedDisplayModes.size() ?
+	                      staticInfo.supportedDisplayModes[dynamicInfo.activeDisplayModeId].resolution.getHeight() : 0;
+	
+	return true;
 }
+#endif
 }
 
-void sf_blank(size_t display_index)
+void sf_blank(size_t display_id)
 {
-	auto display = get_display_token(display_index);
+	android::sp<android::IBinder> display;
+
+#if ANDROID_VERSION_MAJOR>=15
+	display = get_display_token(display_id);
 	if (display == nullptr) return;
-	
+#else
+	if (display_id == 0) {
+		display = android::SurfaceComposerClient::getBuiltInDisplay(
+				android::ISurfaceComposer::eDisplayIdMain);
+	} else if (display_id == 1) {
+		display = android::SurfaceComposerClient::getBuiltInDisplay(
+				android::ISurfaceComposer::eDisplayIdHdmi);
+	} else {
+		fprintf(stderr, "Warning: sf_blank invalid display_id (0 || 1)\n");
+		return;
+	}
+#endif
+
+#if ANDROID_VERSION_MAJOR<=4
+	android::SurfaceComposerClient::blankDisplay(display);
+#elif ANDROID_VERSION_MAJOR>=5
 	android::SurfaceComposerClient::setDisplayPowerMode(display, HWC_POWER_MODE_OFF);
+#endif
 }
 
-void sf_unblank(size_t display_index)
+void sf_unblank(size_t display_id)
 {
-	auto display = get_display_token(display_index);
-	if (display == nullptr) return;
-	
+	android::sp<android::IBinder> display;
+
+	if (display_id == 0) {
+		display = android::SurfaceComposerClient::getBuiltInDisplay(
+				android::ISurfaceComposer::eDisplayIdMain);
+	} else if (display_id == 1) {
+		display = android::SurfaceComposerClient::getBuiltInDisplay(
+				android::ISurfaceComposer::eDisplayIdHdmi);
+	} else {
+		fprintf(stderr, "Warning: sf_unblank invalid display_id (0 || 1)\n");
+		return;
+	}
+
+#if ANDROID_VERSION_MAJOR<=4
+	android::SurfaceComposerClient::unblankDisplay(display);
+#elif ANDROID_VERSION_MAJOR>=5
 	android::SurfaceComposerClient::setDisplayPowerMode(display, HWC_POWER_MODE_NORMAL);
+#endif
 }
 
-size_t sf_get_display_width(size_t display_index)
+size_t sf_get_display_width(size_t display_id)
 {
-	int32_t width = 0, height = 0;
-	if (!get_display_dimensions(display_index, &width, &height)) {
-		fprintf(stderr, "Failed to get display width for display %zu\n", display_index);
-		return 0;
+	android::sp<android::IBinder> display;
+
+	if (display_id == 0) {
+		display = android::SurfaceComposerClient::getBuiltInDisplay(
+				android::ISurfaceComposer::eDisplayIdMain);
+	} else if (display_id == 1) {
+		display = android::SurfaceComposerClient::getBuiltInDisplay(
+				android::ISurfaceComposer::eDisplayIdHdmi);
+	} else {
+		fprintf(stderr, "Warning: sf_get_display_width invalid display_id (0 || 1)\n");
+		return -1;
 	}
-	return width;
+
+	android::DisplayInfo info;
+	android::SurfaceComposerClient::getDisplayInfo(display, &info);
+	return info.w;
 }
 
-size_t sf_get_display_height(size_t display_index)
+size_t sf_get_display_height(size_t display_id)
 {
-	int32_t width = 0, height = 0;
-	if (!get_display_dimensions(display_index, &width, &height)) {
-		fprintf(stderr, "Failed to get display height for display %zu\n", display_index);
-		return 0;
+	android::sp<android::IBinder> display;
+
+	if (display_id == 0) {
+		display = android::SurfaceComposerClient::getBuiltInDisplay(
+				android::ISurfaceComposer::eDisplayIdMain);
+	} else if (display_id == 1) {
+		display = android::SurfaceComposerClient::getBuiltInDisplay(
+				android::ISurfaceComposer::eDisplayIdHdmi);
+	} else {
+		fprintf(stderr, "Warning: sf_get_display_height invalid display_id (0 || 1)\n");
+		return -1;
 	}
-	return height;
+
+	android::DisplayInfo info;
+	android::SurfaceComposerClient::getDisplayInfo(display, &info);
+	return info.h;
 }
 
-size_t sf_get_display_info(size_t display_index, SfDisplayInfo* display_info)
+size_t sf_get_display_info(size_t display_id, SfDisplayInfo* display_info)
 {
+	android::sp<android::IBinder> display;
+
+	if (display_id == 0) {
+		display = android::SurfaceComposerClient::getBuiltInDisplay(
+				android::ISurfaceComposer::eDisplayIdMain);
+	} else if (display_id == 1) {
+		display = android::SurfaceComposerClient::getBuiltInDisplay(
+				android::ISurfaceComposer::eDisplayIdHdmi);
+	} else {
+		fprintf(stderr, "Warning: sf_get_display_info invalid display_id (0 || 1)\n");
+		return -1;
+	}
+
+	android::DisplayInfo info;
+	android::SurfaceComposerClient::getDisplayInfo(display, &info);
+
 	if (display_info == NULL) {
-		fprintf(stderr, "Warning: sf_get_display_info: display_info is null!\n");
+		fprintf(stderr, "Warning: sf_get_display_info: display_info is null! Please allocate it before \n");
 		return -2;
 	}
 
-	int64_t displayId = get_display_id(display_index);
-	if (displayId < 0) return -1;
-	
-	android::ui::StaticDisplayInfo staticInfo;
-	if (android::SurfaceComposerClient::getStaticDisplayInfo(displayId, &staticInfo) != android::NO_ERROR) {
-		return -1;
-	}
-	
-	android::ui::DynamicDisplayInfo dynamicInfo;
-	if (android::SurfaceComposerClient::getDynamicDisplayInfoFromId(displayId, &dynamicInfo) != android::NO_ERROR) {
-		return -1;
-	}
-	
-	// Find active display mode (supportedDisplayModes is in DynamicDisplayInfo)
-	for (const auto& mode : dynamicInfo.supportedDisplayModes) {
-		if (mode.id == dynamicInfo.activeDisplayModeId) {
-			display_info->w = mode.resolution.getWidth();
-			display_info->h = mode.resolution.getHeight();
-			display_info->xdpi = staticInfo.density;
-			display_info->ydpi = staticInfo.density;
-			display_info->fps = mode.peakRefreshRate;
-			display_info->density = staticInfo.density;
-			display_info->orientation = 0; // No longer available
-			return 0;
-		}
-	}
+	// partial copy
+	display_info->w = info.w;
+	display_info->h = info.h;
+	display_info->xdpi = info.xdpi;
+	display_info->ydpi = info.ydpi;
+	display_info->fps = info.fps;
+	display_info->density = info.density;
+	display_info->orientation = info.orientation;
 
-	return -1;
+	return 0;
 }
 
 SfClient* sf_client_create_full(bool egl_support)
@@ -345,9 +388,9 @@ SfSurface* sf_surface_create(SfClient* client, SfSurfaceCreationParameters* para
 	}
 
 #if ANDROID_VERSION_MAJOR>=8
-	android::ui::LayerStack layerStack = android::ui::LayerStack::fromValue(0);
+	uint32_t mDisplayLayerStack = 0;
 	android::SurfaceComposerClient::Transaction()
-		.setLayerStack(surface->surface_control, layerStack)
+		.setLayerStack(surface->surface_control, mDisplayLayerStack)
 		.setLayer(surface->surface_control, params->layer)
 		.setAlpha(surface->surface_control, params->alpha)
 		.setPosition(surface->surface_control, params->x, params->y)

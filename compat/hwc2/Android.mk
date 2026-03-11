@@ -68,13 +68,15 @@ LOCAL_CFLAGS += \
     -DANDROID_VERSION_MINOR=$(ANDROID_VERSION_MINOR) \
     -DANDROID_VERSION_PATCH=$(ANDROID_VERSION_PATCH)
 
+
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libhybris-gralloc
 LOCAL_SRC_FILES := tests/hybris-gralloc.c \
     GrallocUsageConversion.cpp
-LOCAL_C_INCLUDES := $(LOCAL_PATH)/tests
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/tests \
+    $(HYBRIS_PATH)/include
 LOCAL_SHARED_LIBRARIES := libcutils libnativewindow
 LOCAL_CFLAGS := \
     -DANDROID_VERSION_MAJOR=$(ANDROID_VERSION_MAJOR) \
@@ -88,6 +90,8 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := libhwcnativewindow
 LOCAL_SRC_FILES := tests/hwcomposer_window.cpp \
     tests/nativewindowbase.cpp
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/tests \
+    $(HYBRIS_PATH)/include
 LOCAL_SHARED_LIBRARIES := libsync liblog libnativewindow
 LOCAL_CFLAGS := \
     -DANDROID_VERSION_MAJOR=$(ANDROID_VERSION_MAJOR) \
@@ -100,7 +104,8 @@ include $(BUILD_STATIC_LIBRARY)
 include $(CLEAR_VARS)
 LOCAL_MODULE := direct_hwc2_test
 LOCAL_SRC_FILES := tests/direct_hwc2_test.cpp
-LOCAL_C_INCLUDES := $(LOCAL_PATH)/tests
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/tests \
+    $(HYBRIS_PATH)/include
 ifdef TARGET_2ND_ARCH
 LOCAL_MULTILIB := both
 LOCAL_MODULE_STEM_32 := $(if $(filter false,$(BOARD_UBUNTU_PREFER_32_BIT)),$(LOCAL_MODULE)$(TARGET_2ND_ARCH_MODULE_SUFFIX),$(LOCAL_MODULE))
@@ -118,7 +123,8 @@ LOCAL_SHARED_LIBRARIES := \
     libsync \
     libEGL \
     libGLESv2 \
-    libhwc2_compat_layer
+    libhwc2_compat_layer \
+    libui_compat_layer
 
 LOCAL_CFLAGS += -Wno-unused-parameter -DGL_GLEXT_PROTOTYPES -UNDEBUG \
     -DHWC2_USE_CPP11 -DHWC2_INCLUDE_STRINGIFICATION

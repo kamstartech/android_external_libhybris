@@ -19,12 +19,13 @@
 #ifndef INPUT_STACK_COMPATIBILITY_LAYER_H_
 #define INPUT_STACK_COMPATIBILITY_LAYER_H_
 
+#include <stdint.h>
+#include <stdbool.h>
+#include <sys/types.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <stdint.h>
-#include <stdbool.h>
 
 #define MAX_POINTER_COUNT 16
 

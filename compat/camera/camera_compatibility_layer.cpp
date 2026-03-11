@@ -30,6 +30,7 @@
 #include <binder/ProcessState.h>
 #include <camera/Camera.h>
 #include <camera/CameraParameters.h>
+#include <android/content/AttributionSourceState.h>
 #if ANDROID_VERSION_MAJOR==4 && ANDROID_VERSION_MINOR<=2
 #include <gui/SurfaceTexture.h>
 #else
@@ -58,7 +59,28 @@
 
 #define REPORT_FUNCTION() ALOGV("%s \n", __PRETTY_FUNCTION__)
 
-using android::CompileTimeAssert; // So COMPILE_TIME_ASSERT works
+// Android 15 Camera API helpers
+namespace {
+android::content::AttributionSourceState getDefaultAttributionSource() {
+	android::content::AttributionSourceState attr;
+	attr.packageName = std::string("hybris");
+	attr.uid = getuid();
+	attr.pid = getpid();
+	return attr;
+}
+
+int getNumberOfCamerasCompat() {
+	return android::Camera::getNumberOfCameras(getDefaultAttributionSource(), 0);
+}
+
+android::status_t getCameraInfoCompat(int camera_id, android::hardware::CameraInfo* info) {
+	return android::Camera::getCameraInfo(camera_id, 0, getDefaultAttributionSource(), 0, info);
+}
+
+android::sp<android::Camera> connectCameraCompat(int camera_id) {
+	return android::Camera::connect(camera_id, 0, 0, false, getDefaultAttributionSource(), 0);
+}
+}
 
 // From android::GLConsumer::FrameAvailableListener
 #if ANDROID_VERSION_MAJOR==5 && ANDROID_VERSION_MINOR>=1 || ANDROID_VERSION_MAJOR>=6
@@ -211,7 +233,7 @@ static void setParameters_resilient(CameraControl* control)
 int android_camera_get_number_of_devices()
 {
 	REPORT_FUNCTION();
-	return android::Camera::getNumberOfCameras();
+	return getNumberOfCamerasCompat();
 }
 
 int android_camera_get_device_info(int32_t camera_id, int* facing, int* orientation)
@@ -226,7 +248,7 @@ int android_camera_get_device_info(int32_t camera_id, int* facing, int* orientat
 
 	android::CameraInfo ci;
 
-	int rv = android::Camera::getCameraInfo(camera_id, &ci);
+	int rv = getCameraInfoCompat(camera_id, &ci);
 	if (rv != android::OK)
 		return rv;
 
@@ -240,11 +262,11 @@ CameraControl* android_camera_connect_to(CameraType camera_type, CameraControlLi
 {
 	REPORT_FUNCTION();
 
-	const int32_t camera_count = android::Camera::getNumberOfCameras();
+	const int32_t camera_count = getNumberOfCamerasCompat();
 
 	for (int32_t camera_id = 0; camera_id < camera_count; camera_id++) {
 		android::CameraInfo ci;
-		android::Camera::getCameraInfo(camera_id, &ci);
+		getCameraInfoCompat(camera_id, &ci);
 
 		if (ci.facing != camera_type)
 			continue;
@@ -257,18 +279,12 @@ CameraControl* android_camera_connect_to(CameraType camera_type, CameraControlLi
 
 CameraControl* android_camera_connect_by_id(int32_t camera_id, struct CameraControlListener* listener)
 {
-	if (camera_id < 0 || camera_id >= android::Camera::getNumberOfCameras())
+	if (camera_id < 0 || camera_id >= getNumberOfCamerasCompat())
 		return NULL;
 
 	android::sp<CameraControl> cc = new CameraControl();
 	cc->listener = listener;
-#if  ANDROID_VERSION_MAJOR>=7
-	cc->camera = android::Camera::connect(camera_id, android::String16("hybris"), android::Camera::USE_CALLING_UID, android::Camera::USE_CALLING_PID);
-#elif ANDROID_VERSION_MAJOR==4 && ANDROID_VERSION_MINOR>=3 || ANDROID_VERSION_MAJOR>=5
-	cc->camera = android::Camera::connect(camera_id, android::String16("hybris"), android::Camera::USE_CALLING_UID);
-#else
-	cc->camera = android::Camera::connect(camera_id);
-#endif
+	cc->camera = connectCameraCompat(camera_id);
 
 	if (cc->camera == NULL)
 		return NULL;
@@ -324,7 +340,7 @@ void android_camera_dump_parameters(CameraControl* control)
 	REPORT_FUNCTION();
 	assert(control);
 
-	printf("%s \n", control->camera->getParameters().string());
+	printf("%s \n", control->camera->getParameters().c_str());
 }
 
 void android_camera_set_flash_mode(CameraControl* control, FlashMode mode)
@@ -370,7 +386,7 @@ void android_camera_enumerate_supported_flash_modes(CameraControl* control, flas
 	const char delimiter[2] = ",";
 	char *token;
 	android::String8 mode;
-	char *raw_modes_mutable = strdup(raw_modes.string());
+	char *raw_modes_mutable = strdup(raw_modes.c_str());
 
 	token = strtok(raw_modes_mutable, delimiter);
 
@@ -438,7 +454,7 @@ void android_camera_enumerate_supported_scene_modes(CameraControl* control, scen
 	const char delimiter[2] = ",";
 	char *token;
 	android::String8 mode;
-	char *raw_modes_mutable = strdup(raw_modes.string());
+	char *raw_modes_mutable = strdup(raw_modes.c_str());
 
 	token = strtok(raw_modes_mutable, delimiter);
 
@@ -645,9 +661,9 @@ void android_camera_enumerate_supported_thumbnail_sizes(struct CameraControl* co
 	const char size_delimiter[2] = "x";
 	char *token, *save_ptr, *save_ptr1;
 	int height = 0, width = 0;
-	char *sizes_mutable = strdup(sizes.string());
+	char *sizes_mutable = strdup(sizes.c_str());
 
-	ALOGD("Supported thumbnail sizes: %s", sizes.string());
+	ALOGD("Supported thumbnail sizes: %s", sizes.c_str());
 	// Get the first <width>x<height to the left of ','
 	token = strtok_r(sizes_mutable, delimiter, &save_ptr);
 

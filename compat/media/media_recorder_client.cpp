@@ -24,10 +24,18 @@
 #include <libmediaplayerservice/StagefrightRecorder.h>
 #include <binder/IServiceManager.h>
 
+#if ANDROID_VERSION_MAJOR>=15
+#include <android/content/AttributionSourceState.h>
+#include <binder/PermissionController.h>
+#include <media/MediaRecorderBase.h>
+#endif
 
 #define REPORT_FUNCTION() ALOGV("%s \n", __PRETTY_FUNCTION__)
 
 using namespace android;
+#if ANDROID_VERSION_MAJOR>=15
+using android::content::AttributionSourceState;
+#endif
 
 MediaRecorderClient::MediaRecorderClient()
 {
@@ -39,7 +47,14 @@ MediaRecorderClient::MediaRecorderClient()
 
     media_recorder_observer = new BpMediaRecorderObserver(service);
 
-#if ANDROID_VERSION_MAJOR>=6
+#if ANDROID_VERSION_MAJOR>=15
+    // Android 15+ uses AttributionSourceState instead of package name
+    AttributionSourceState attributionSource;
+    attributionSource.packageName = std::string("ubuntu");
+    attributionSource.uid = getuid();
+    attributionSource.pid = getpid();
+    recorder = new android::StagefrightRecorder(attributionSource);
+#elif ANDROID_VERSION_MAJOR>=6
     // TODO: do we need to get valid package here?
     const String16 opPackageName("ubuntu");
     recorder = new android::StagefrightRecorder(opPackageName);
@@ -421,6 +436,29 @@ status_t MediaRecorderClient::setInputDevice(audio_port_handle_t deviceId)
     return NO_INIT;
 }
 
+#if ANDROID_VERSION_MAJOR>=15
+status_t MediaRecorderClient::getRoutedDeviceIds(std::vector<audio_port_handle_t>& deviceIds)
+{
+    REPORT_FUNCTION();
+    ALOGV("getRoutedDeviceIds");
+    Mutex::Autolock lock(recorder_lock);
+    if (recorder != NULL) {
+        return recorder->getRoutedDeviceIds(deviceIds);
+    }
+    return NO_INIT;
+}
+
+status_t MediaRecorderClient::getRtpDataUsage(uint64_t *bytes)
+{
+    REPORT_FUNCTION();
+    ALOGV("getRtpDataUsage");
+    Mutex::Autolock lock(recorder_lock);
+    if (recorder != NULL) {
+        return recorder->getRtpDataUsage(bytes);
+    }
+    return NO_INIT;
+}
+#else
 status_t MediaRecorderClient::getRoutedDeviceId(audio_port_handle_t* deviceId)
 {
     REPORT_FUNCTION();
@@ -431,6 +469,7 @@ status_t MediaRecorderClient::getRoutedDeviceId(audio_port_handle_t* deviceId)
     }
     return NO_INIT;
 }
+#endif
 
 status_t MediaRecorderClient::enableAudioDeviceCallback(bool enabled)
 {
@@ -443,8 +482,13 @@ status_t MediaRecorderClient::enableAudioDeviceCallback(bool enabled)
     return NO_INIT;
 }
 
+#if ANDROID_VERSION_MAJOR>=15
+status_t MediaRecorderClient::getActiveMicrophones(
+        std::vector<media::MicrophoneInfoFw>* activeMicrophones)
+#else
 status_t MediaRecorderClient::getActiveMicrophones(
         std::vector<media::MicrophoneInfo>* activeMicrophones)
+#endif
 {
     REPORT_FUNCTION();
     ALOGV("getActiveMicrophones");

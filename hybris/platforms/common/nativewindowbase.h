@@ -17,7 +17,8 @@
 #ifndef NATIVEWINDOWBASE_H
 #define NATIVEWINDOWBASE_H
 
-#include <android-config.h>
+// Android 15: android-config.h no longer exists
+// #include <android-config.h>
 
 /* for ICS window.h */
 #include <string.h>

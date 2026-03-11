@@ -1,85 +1,62 @@
-/*
- * Copyright (C) 2013 Canonical Ltd
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * Authored by: Thomas Voß <thomas.voss@canonical.com>
- *              Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>
- */
-
 #include <hybris/input/input_stack_compatibility_layer.h>
-
-#include <gtest/gtest.h>
-#include <utils/threads.h>
-
+#include <stdio.h>
 #include <signal.h>
+#include <unistd.h>
 
-namespace
-{
+static bool g_stop = false;
 
-bool g_stop = false;
-
-void signal_handler(int)
-{
-	g_stop = true;
+void signal_handler(int) {
+    g_stop = true;
 }
 
-void on_new_event(Event* event, void* context)
-{
-	printf("%s", __PRETTY_FUNCTION__);
+void on_new_event(Event* event, void* context) {
+    printf("Event type=%d device=%d source=%d action=%d\n",
+           event->type, event->device_id, event->source_id, event->action);
 
-	printf("\tEventType: %d \n", event->type);
-	printf("\tdevice_id: %d \n", event->device_id);
-	printf("\tsource_id: %d \n", event->source_id);
-	printf("\taction: %d \n", event->action);
-	printf("\tflags: %d \n", event->flags);
-	printf("\tmeta_state: %d \n", event->meta_state);
-
-	switch (event->type) {
-	case MOTION_EVENT_TYPE:
-		printf("\tdetails.motion.event_time: %lld\n",
-				event->details.motion.event_time);
-		printf("\tdetails.motion.pointer_coords.x: %f\n",
-				event->details.motion.pointer_coordinates[0].x);
-		printf("\tdetails.motion.pointer_coords.y: %f\n",
-				event->details.motion.pointer_coordinates[0].y);
-		break;
-	default:
-		break;
-	}
+    if (event->type == MOTION_EVENT_TYPE) {
+        printf("  TOUCH: x=%.1f y=%.1f pointers=%zu time=%lld\n",
+               event->details.motion.pointer_coordinates[0].x,
+               event->details.motion.pointer_coordinates[0].y,
+               event->details.motion.pointer_count,
+               (long long)event->details.motion.event_time);
+    } else if (event->type == KEY_EVENT_TYPE) {
+        printf("  KEY: code=%d scan=%d\n",
+               event->details.key.key_code,
+               event->details.key.scan_code);
+    }
+    fflush(stdout);
 }
 
-}
+int main() {
+    printf("Input test starting...\n");
+    fflush(stdout);
 
-int main(int argc, char** argv)
-{
-	g_stop = false;
-	signal(SIGINT, signal_handler);
+    g_stop = false;
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
 
-	AndroidEventListener listener;
-	listener.on_new_event = on_new_event;
-	listener.context = NULL;
+    AndroidEventListener listener;
+    listener.on_new_event = on_new_event;
+    listener.context = NULL;
 
-	InputStackConfiguration config = {
-		enable_touch_point_visualization : true,
-		default_layer_for_touch_point_visualization : 10000,
-		input_area_width : 1024,
-		input_area_height : 1024
-	};
+    InputStackConfiguration config = {
+        false,  // no touch point visualization
+        10000,  // layer
+        1080,   // width
+        2340    // height
+    };
 
-	android_input_stack_initialize(&listener, &config);
-	android_input_stack_start_waiting_for_flag(&g_stop);
+    printf("Initializing input stack...\n");
+    fflush(stdout);
+    android_input_stack_initialize(&listener, &config);
 
-	android_input_stack_stop();
-	android_input_stack_shutdown();
+    printf("Starting input stack (touch the screen)...\n");
+    fflush(stdout);
+    android_input_stack_start_waiting_for_flag(&g_stop);
+
+    printf("Stopping...\n");
+    android_input_stack_stop();
+    android_input_stack_shutdown();
+    printf("Done.\n");
+    return 0;
 }

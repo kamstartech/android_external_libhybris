@@ -58,7 +58,12 @@ public:
 
 // ----------------------------------------------------------------------------
 
+#if ANDROID_VERSION_MAJOR>=15
+// Android 15+ requires allowlist or use of _UNCHECKED variant
+DO_NOT_DIRECTLY_USE_ME_IMPLEMENT_META_INTERFACE(MediaRecorderFactory, "android.media.IMediaRecorderFactory");
+#else
 IMPLEMENT_META_INTERFACE(MediaRecorderFactory, "android.media.IMediaRecorderFactory");
+#endif
 
 // ----------------------------------------------------------------------
 

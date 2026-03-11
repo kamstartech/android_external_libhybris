@@ -18,6 +18,24 @@
  *				Jim Hodapp <jim.hodapp@canonical.com>
  */
 
+// Force stdint.h to be included first to define integer types
+// Force stdint.h to be included first to define integer types
+#include <stdint.h>
+
+#ifndef _STDINT_H
+// Fallback if stdint.h didn't work
+typedef __UINT32_TYPE__ uint32_t;
+typedef __INT32_TYPE__ int32_t;
+typedef __UINT64_TYPE__ uint64_t;
+typedef __INT64_TYPE__ int64_t;
+typedef __UINT16_TYPE__ uint16_t;
+typedef __UINT8_TYPE__ uint8_t;
+typedef __INTPTR_TYPE__ intptr_t;
+typedef __UINTPTR_TYPE__ uintptr_t;
+#endif
+
+#include <sys/types.h>
+
 #include <hybris/camera/camera_compatibility_layer.h>
 #include <hybris/camera/camera_compatibility_layer_capabilities.h>
 #include <hybris/media/media_recorder_layer.h>
@@ -35,7 +53,6 @@
 #include <GLES2/gl2ext.h>
 
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -389,7 +406,7 @@ static MediaRecorderWrapper *start_video_recording(CameraControl *camera_control
 		return NULL;
 	}
 	int fd = -1;
-	char *out_file = "/cache/test_recording.mp4";
+	const char *out_file = "/cache/test_recording.mp4";
 	fd = open(out_file, O_WRONLY | O_CREAT,
 			  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 	if (fd < 0) {
@@ -558,10 +575,10 @@ int main(int argc, char** argv)
 	event_listener.context = camera_control;
 
 	InputStackConfiguration input_configuration = {
-		enable_touch_point_visualization : true,
-		default_layer_for_touch_point_visualization : 10000,
-		input_area_width : 1024,
-		input_area_height : 1024
+		.enable_touch_point_visualization = true,
+		.default_layer_for_touch_point_visualization = 10000,
+		.input_area_width = 1024,
+		.input_area_height = 1024
 	};
 
 	android_input_stack_initialize(&event_listener, &input_configuration);

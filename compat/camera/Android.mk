@@ -27,6 +27,7 @@ LOCAL_SRC_FILES := camera_compatibility_layer.cpp
 
 LOCAL_MODULE := libcamera_compat_layer
 LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_RELATIVE_PATH := 
 
 LOCAL_C_INCLUDES := \
 	$(HYBRIS_PATH)/include
@@ -45,7 +46,8 @@ LOCAL_SHARED_LIBRARIES := \
 	libbinder \
 	libhardware \
 	libui \
-	libgui
+	libgui \
+	framework-permission-aidl-cpp
 
 ifeq ($(HYBRIS_MEDIA_32_BIT_ONLY),true)
 LOCAL_32_BIT_ONLY := true
@@ -70,10 +72,9 @@ endif
 
 LOCAL_C_INCLUDES := \
 	$(HYBRIS_PATH)/include \
-	bionic \
-	external/libcxx/include \
-	external/gtest/include \
-	external/skia/include/core \
+
+
+LOCAL_CFLAGS := -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS
 
 LOCAL_SHARED_LIBRARIES := \
 	libis_compat_layer \
@@ -88,7 +89,8 @@ LOCAL_SHARED_LIBRARIES := \
 	libui \
 	libgui \
 	libEGL \
-	libGLESv2
+	libGLESv2 \
+	liblog
 
 ifeq ($(HYBRIS_MEDIA_32_BIT_ONLY),true)
 LOCAL_32_BIT_ONLY := true

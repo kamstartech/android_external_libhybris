@@ -30,7 +30,32 @@
 #include <hardware/fb.h>
 
 #ifdef ANDROID_BUILD
+#include <stdint.h>
 #include "hybris-gralloc.h"
+
+// Android 15: Define stub functions for UI symbols
+static void hybris_ui_initialize() {}
+static int hybris_ui_check_for_symbol(const char* name) { (void)name; return 0; }
+static int graphic_buffer_allocator_free(const buffer_handle_t handle) { (void)handle; return 0; }
+static int graphic_buffer_mapper_free_buffer(const buffer_handle_t handle) { (void)handle; return 0; }
+static int graphic_buffer_allocator_allocate(int w, int height, int f, int l, uint64_t u, 
+                                              buffer_handle_t* handle_out, uint32_t* stride_out,
+                                              uint64_t gfx_buf_id, const char* name) {
+	(void)w; (void)height; (void)f; (void)l; (void)u; (void)handle_out; (void)stride_out;
+	(void)gfx_buf_id; (void)name;
+	return -ENOSYS; 
+}
+static int graphic_buffer_mapper_import_buffer_no_size(const buffer_handle_t raw, buffer_handle_t* out) { 
+	(void)raw; (void)out; return -ENOSYS; 
+}
+static int graphic_buffer_mapper_lock(const buffer_handle_t handle, uint64_t usage, void* bounds, void** vaddr, 
+                                      int32_t* bytes_per_pixel, int32_t* bytes_per_stride) { 
+	(void)handle; (void)usage; (void)bounds; (void)vaddr; 
+	(void)bytes_per_pixel; (void)bytes_per_stride;
+	return -ENOSYS; 
+}
+static int graphic_buffer_mapper_unlock(const buffer_handle_t handle) { (void)handle; return -ENOSYS; }
+
 #else
 #include <hybris/gralloc/gralloc.h>
 #include <hybris/ui/ui.h>
@@ -44,7 +69,12 @@
 #include <assert.h>
 
 #include <dlfcn.h>
-#include "logging.h"
+// Android 15: Use android log directly
+#include <android/log.h>
+#define ALOGI(...) __android_log_print(ANDROID_LOG_INFO, "hybris-gralloc", __VA_ARGS__)
+#define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, "hybris-gralloc", __VA_ARGS__)
+#define ALOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "hybris-gralloc", __VA_ARGS__)
+#define TRACE(...) __android_log_print(ANDROID_LOG_VERBOSE, "hybris-gralloc", __VA_ARGS__)
 
 static int version = -1;
 static hw_module_t *gralloc_hardware_module = NULL;

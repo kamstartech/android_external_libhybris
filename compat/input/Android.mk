@@ -39,9 +39,16 @@ endif
 HAS_LIBINPUTFLINGER := $(shell test $(ANDROID_VERSION_MAJOR) -ge 5 && echo true)
 ifeq ($(HAS_LIBINPUTFLINGER),true)
 LOCAL_SHARED_LIBRARIES += libinputflinger libinputservice
+ifeq ($(shell test $(ANDROID_VERSION_MAJOR) -ge 15 && echo true),true)
+LOCAL_SHARED_LIBRARIES += libinputreader libinputflinger_base
+endif
 LOCAL_C_INCLUDES += \
 	frameworks/base/libs/input \
-	frameworks/native/services
+	frameworks/native/services \
+	frameworks/native/services/batteryservice/include \
+	frameworks/native/services/inputflinger/reader/include \
+	frameworks/native/libs/nativewindow/include \
+	frameworks/base/libs/hwui/apex/include
 endif
 
 
@@ -67,30 +74,11 @@ LOCAL_MODULE_STEM_64 := $(if $(filter false,$(BOARD_UBUNTU_PREFER_32_BIT)),$(LOC
 endif
 
 LOCAL_C_INCLUDES := \
-	$(HYBRIS_PATH)/include \
-	bionic \
-	external/libcxx/include \
-	external/gtest/include \
-	external/skia/include/core
+	$(HYBRIS_PATH)/include
 
 LOCAL_SHARED_LIBRARIES := \
 	libis_compat_layer \
 	libcutils \
-	libutils \
-	libgui \
-	libandroidfw
-
-static_libraries := \
-	libgtest \
-	libgtest_main
-
-
-ifeq ($(shell test $(ANDROID_VERSION_MAJOR) -ge 10 && echo true),true)
-static_libraries += \
-	libskia
-else
-LOCAL_SHARED_LIBRARIES += \
-	libskia
-endif
+	libutils
 
 include $(BUILD_EXECUTABLE)
