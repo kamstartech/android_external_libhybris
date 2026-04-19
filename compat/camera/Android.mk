@@ -27,7 +27,7 @@ LOCAL_SRC_FILES := camera_compatibility_layer.cpp
 
 LOCAL_MODULE := libcamera_compat_layer
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_RELATIVE_PATH := 
+LOCAL_MODULE_RELATIVE_PATH := \
 
 LOCAL_C_INCLUDES := \
 	$(HYBRIS_PATH)/include

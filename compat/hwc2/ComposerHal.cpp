@@ -113,59 +113,15 @@ Composer::CommandWriter::~CommandWriter()
 void Composer::CommandWriter::setLayerInfo(uint32_t type, uint32_t appId)
 {
     constexpr uint16_t kSetLayerInfoLength = 2;
-    beginCommand(
-        static_cast<IComposerClient::Command>(
-            IVrComposerClient::VrCommand::SET_LAYER_INFO),
-        kSetLayerInfoLength);
-    write(type);
-    write(appId);
-    endCommand();
+    // VR layer info command removed for Android 15 — no-op
+    (void)type;
+    (void)appId;
 }
 
-void Composer::CommandWriter::setClientTargetMetadata(
-        const IVrComposerClient::BufferMetadata& metadata)
+Composer::Composer()
+    : mWriter(kWriterInitialSize)
 {
-    constexpr uint16_t kSetClientTargetMetadataLength = 7;
-    beginCommand(
-        static_cast<IComposerClient::Command>(
-            IVrComposerClient::VrCommand::SET_CLIENT_TARGET_METADATA),
-        kSetClientTargetMetadataLength);
-    writeBufferMetadata(metadata);
-    endCommand();
-}
-
-void Composer::CommandWriter::setLayerBufferMetadata(
-        const IVrComposerClient::BufferMetadata& metadata)
-{
-    constexpr uint16_t kSetLayerBufferMetadataLength = 7;
-    beginCommand(
-        static_cast<IComposerClient::Command>(
-            IVrComposerClient::VrCommand::SET_LAYER_BUFFER_METADATA),
-        kSetLayerBufferMetadataLength);
-    writeBufferMetadata(metadata);
-    endCommand();
-}
-
-void Composer::CommandWriter::writeBufferMetadata(
-        const IVrComposerClient::BufferMetadata& metadata)
-{
-    write(metadata.width);
-    write(metadata.height);
-    write(metadata.stride);
-    write(metadata.layerCount);
-    writeSigned(static_cast<int32_t>(metadata.format));
-    write64(metadata.usage);
-}
-
-Composer::Composer(bool useVrComposer)
-    : mWriter(kWriterInitialSize),
-      mIsUsingVrComposer(useVrComposer)
-{
-    if (mIsUsingVrComposer) {
-        mComposer = IComposer::getService("vr");
-    } else {
-        mComposer = IComposer::getService(); // use default name
-    }
+    mComposer = IComposer::getService(); // use default name
 
     if (mComposer == nullptr) {
         LOG_ALWAYS_FATAL("failed to get hwcomposer service");
@@ -180,13 +136,6 @@ Composer::Composer(bool useVrComposer)
             });
     if (mClient == nullptr) {
         LOG_ALWAYS_FATAL("failed to create composer client");
-    }
-
-    if (mIsUsingVrComposer) {
-        sp<IVrComposerClient> vrClient = IVrComposerClient::castFrom(mClient);
-        if (vrClient == nullptr) {
-            LOG_ALWAYS_FATAL("failed to create vr composer client");
-        }
     }
 }
 
@@ -479,17 +428,6 @@ Error Composer::setClientTarget(Display display, uint32_t slot,
         const std::vector<IComposerClient::Rect>& damage)
 {
     mWriter.selectDisplay(display);
-    if (mIsUsingVrComposer && target.get()) {
-        IVrComposerClient::BufferMetadata metadata = {
-            .width = target->getWidth(),
-            .height = target->getHeight(),
-            .stride = target->getStride(),
-            .layerCount = target->getLayerCount(),
-            .format = static_cast<PixelFormat>(target->getPixelFormat()),
-            .usage = target->getUsage(),
-        };
-        mWriter.setClientTargetMetadata(metadata);
-    }
 
     const native_handle_t* handle = nullptr;
     if (target.get()) {
@@ -594,17 +532,6 @@ Error Composer::setLayerBuffer(Display display, Layer layer,
 {
     mWriter.selectDisplay(display);
     mWriter.selectLayer(layer);
-    if (mIsUsingVrComposer && buffer.get()) {
-        IVrComposerClient::BufferMetadata metadata = {
-            .width = buffer->getWidth(),
-            .height = buffer->getHeight(),
-            .stride = buffer->getStride(),
-            .layerCount = buffer->getLayerCount(),
-            .format = static_cast<PixelFormat>(buffer->getPixelFormat()),
-            .usage = buffer->getUsage(),
-        };
-        mWriter.setLayerBufferMetadata(metadata);
-    }
 
     const native_handle_t* handle = nullptr;
     if (buffer.get()) {
@@ -725,11 +652,8 @@ Error Composer::setLayerZOrder(Display display, Layer layer, uint32_t z)
 Error Composer::setLayerInfo(Display display, Layer layer, uint32_t type,
                              uint32_t appId)
 {
-    if (mIsUsingVrComposer) {
-        mWriter.selectDisplay(display);
-        mWriter.selectLayer(layer);
-        mWriter.setLayerInfo(type, appId);
-    }
+    // VR layer info removed for Android 15
+    (void)display; (void)layer; (void)type; (void)appId;
     return Error::NONE;
 }
 

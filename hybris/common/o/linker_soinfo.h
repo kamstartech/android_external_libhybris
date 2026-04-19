@@ -33,6 +33,13 @@
 
 #include <string>
 
+/* ElfW(Relr) type for DT_RELR relocation support */
+#ifndef _LINKER_RELR_TYPEDEF
+#define _LINKER_RELR_TYPEDEF
+typedef Elf32_Word Elf32_Relr;
+typedef Elf64_Xword Elf64_Relr;
+#endif
+
 #include "linker_namespaces.h"
 
 #define FLAG_LINKED           0x00000001
@@ -199,6 +206,9 @@ struct soinfo {
                   const android_dlextinfo* extinfo);
   bool protect_relro();
 
+  bool relocate_relr();
+  void apply_relr_reloc(ElfW(Addr) offset);
+
   void add_child(soinfo* child);
   void remove_all_links();
 
@@ -337,6 +347,14 @@ struct soinfo {
   android_namespace_t* primary_namespace_;
   android_namespace_list_t secondary_namespaces_;
   uintptr_t handle_;
+
+  // version >= 4 — DT_RELR support (backported from q/)
+  ElfW(Relr)* relr_;
+  size_t relr_count_;
+
+  // HYBRIS: Per-module TLS tracking for TLSDESC resolver
+  size_t tls_module_offset_{0}; // offset within _android_tls_fallback
+  size_t tls_size_{0};          // total TLS size (p_memsz)
 
   friend soinfo* get_libdl_info(const char* linker_path, const link_map& linker_map);
 };

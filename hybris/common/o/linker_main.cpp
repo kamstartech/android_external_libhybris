@@ -512,6 +512,13 @@ static void __linker_cannot_link(const char* argv0) {
 }
 
 void* (*_get_hooked_symbol)(const char *sym, const char *requester);
+
+// HYBRIS: glibc dlsym function pointer (defined in linker.cpp)
+extern void* (*_glibc_dlsym)(void*, const char*);
+
+// HYBRIS: Weak reference to glibc's dlsym (from libdl.so.2)
+extern "C" __attribute__((weak)) void* dlsym(void* handle, const char* symbol);
+
 #ifdef WANT_ARM_TRACING
 void *(*_create_wrapper)(const char *symbol, void *function, int wrapper_type);
 int _wrapping_enabled = 0;
@@ -543,6 +550,12 @@ extern "C" void android_linker_init(int sdk_version, void* (*get_hooked_symbol)(
 
   _get_hooked_symbol = get_hooked_symbol;
   _linker_enable_gdb_support = enable_linker_gdb_support;
+
+  // HYBRIS: Resolve glibc's dlsym for bionic TLS bypass.
+  // libhybris-common.so loads libdl.so.2, making dlsym available.
+  if (dlsym) {
+    _glibc_dlsym = dlsym;
+  }
 #ifdef WANT_ARM_TRACING
   _create_wrapper = create_wrapper;
   _wrapping_enabled = wrapping_enabled;

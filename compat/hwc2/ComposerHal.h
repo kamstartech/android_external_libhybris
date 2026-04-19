@@ -23,7 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <android/hardware/graphics/composer/2.1/IComposer.h>
 #include <utils/StrongPointer.h>
 #if ANDROID_VERSION_MAJOR >= 9
@@ -35,8 +34,6 @@
 namespace android {
 
 namespace Hwc2 {
-
-using android::frameworks::vr::composer::V1_0::IVrComposerClient;
 
 using android::hardware::graphics::common::V1_0::ColorMode;
 using android::hardware::graphics::common::V1_0::ColorTransform;
@@ -140,7 +137,7 @@ private:
 // Composer is a wrapper to IComposer, a proxy to server-side composer.
 class Composer {
 public:
-    Composer(bool useVrComposer);
+    Composer();
 
     std::vector<IComposer::Capability> getCapabilities();
     std::string dumpDebugInfo();
@@ -157,7 +154,6 @@ public:
     void resetCommands();
 
     uint32_t getMaxVirtualDisplayCount();
-    bool isUsingVrComposer() const { return mIsUsingVrComposer; }
     Error createVirtualDisplay(uint32_t width, uint32_t height,
             PixelFormat* format, Display* outDisplay);
     Error destroyVirtualDisplay(Display display);
@@ -259,14 +255,6 @@ private:
         ~CommandWriter() override;
 
         void setLayerInfo(uint32_t type, uint32_t appId);
-        void setClientTargetMetadata(
-                const IVrComposerClient::BufferMetadata& metadata);
-        void setLayerBufferMetadata(
-                const IVrComposerClient::BufferMetadata& metadata);
-
-    private:
-        void writeBufferMetadata(
-                const IVrComposerClient::BufferMetadata& metadata);
     };
 
     // Many public functions above simply write a command into the command
@@ -282,10 +270,6 @@ private:
         64 * 1024 / sizeof(uint32_t) - 16;
     CommandWriter mWriter;
     CommandReader mReader;
-
-    // When true, the we attach to the vr_hwcomposer service instead of the
-    // hwcomposer. This allows us to redirect surfaces to 3d surfaces in vr.
-    const bool mIsUsingVrComposer;
 };
 
 } // namespace Hwc2

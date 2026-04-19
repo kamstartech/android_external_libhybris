@@ -37,6 +37,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+/* ElfW(Relr) type for DT_RELR relocation support */
+#ifndef _LINKER_RELR_TYPEDEF
+#define _LINKER_RELR_TYPEDEF
+typedef Elf32_Word Elf32_Relr;
+typedef Elf64_Xword Elf64_Relr;
+#endif
+
 #include "private/bionic_page.h"
 #include "linked_list.h"
 #include "linker_common_types.h"

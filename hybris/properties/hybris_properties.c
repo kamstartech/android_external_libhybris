@@ -39,13 +39,24 @@ static void unload_libcutils(void)
 {
     if (libcutils) {
         android_dlclose(libcutils);
+        libcutils = NULL;
     }
+}
+
+static void fallback_to_own_impl(const char *reason)
+{
+    unload_libcutils();
+    bionic_property_list = NULL;
+    bionic_property_get = NULL;
+    bionic_property_set = NULL;
+    own_impl = 1;
+    fprintf(stderr, "%s\n", reason);
 }
 
 #define PROPERTY_DLSYM(func) {*(void **)(&bionic_##func) = (void*)android_dlsym(libcutils, #func); \
                               if (!bionic_##func) { \
-                                  fprintf(stderr, "failed to load " #func " from bionic libcutils\n"); \
-                                  abort(); \
+                                  fallback_to_own_impl("bionic libcutils property symbols unavailable, falling back to own property implementation"); \
+                                  return; \
                               }}
 
 static void ensure_bionic_properties_initialized(void)
@@ -53,13 +64,13 @@ static void ensure_bionic_properties_initialized(void)
     if (!libcutils && !own_impl) {
         libcutils = android_dlopen("libcutils.so", RTLD_LAZY);
         if (libcutils) {
+            /* Android 15 no longer exports the legacy libcutils property_* API. */
             PROPERTY_DLSYM(property_get);
             PROPERTY_DLSYM(property_set);
             PROPERTY_DLSYM(property_list);
             atexit(unload_libcutils);
         } else {
-            own_impl = 1;
-            fprintf(stderr, "failed to load bionic libc.so, falling back own property implementation\n");
+            fallback_to_own_impl("failed to load bionic libcutils, falling back to own property implementation");
         }
     }
 }

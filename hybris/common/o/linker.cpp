@@ -104,6 +104,59 @@ static LinkerTypeAllocator<LinkedListEntry<soinfo>> g_soinfo_links_allocator;
 
 static const char* const kLdConfigFilePath = "/system/etc/ld.config.txt";
 
+// HYBRIS: glibc dlsym fallback for symbols not in the hooks table.
+// Prevents bionic code from executing (bionic TLS is incompatible with glibc).
+// Resolved at runtime from libdl.so.2 (loaded by libhybris-common).
+void* (*_glibc_dlsym)(void*, const char*) = nullptr;
+#ifndef HYBRIS_RTLD_DEFAULT
+#define HYBRIS_RTLD_DEFAULT ((void*)0)
+#endif
+
+// HYBRIS: Android TLS fallback for TLSDESC relocations.
+// Android 15 libraries use R_AARCH64_TLSDESC for thread-local storage.
+// Since we can't use bionic's TLS (tpidr_el0 belongs to glibc), we provide
+// a global fallback buffer. Each Android library gets a range within this
+// buffer for its TLS variables. The TLSDESC resolver returns an offset from
+// tpidr_el0 to the variable's slot in this buffer.
+// Not truly per-thread — sufficient for single-threaded compositor (lipstick).
+#if defined(__aarch64__)
+static char _android_tls_fallback[65536] __attribute__((aligned(64)));
+static size_t _android_tls_next_offset = 0;
+
+// Allocate TLS space for a module. Returns offset within _android_tls_fallback.
+static size_t android_tls_allocate(size_t size, size_t align) {
+  if (align < 1) align = 1;
+  // Align up
+  size_t offset = (_android_tls_next_offset + align - 1) & ~(align - 1);
+  if (offset + size > sizeof(_android_tls_fallback)) {
+    DL_ERR("android TLS fallback exhausted (%zu + %zu > %zu)",
+           offset, size, sizeof(_android_tls_fallback));
+    return 0;
+  }
+  _android_tls_next_offset = offset + size;
+  return offset;
+}
+
+// Assembly TLSDESC resolver for AArch64.
+// Calling convention: x0 = &descriptor, returns x0 = offset from tpidr_el0.
+// desc[1] holds the absolute address of the TLS variable in our fallback buffer.
+// We compute: absolute_addr - tpidr_el0 = offset that caller adds to tpidr_el0.
+extern "C" void _hybris_tlsdesc_resolver(void);
+__asm__(
+  ".global _hybris_tlsdesc_resolver\n"
+  ".type _hybris_tlsdesc_resolver, %function\n"
+  ".align 4\n"
+  "_hybris_tlsdesc_resolver:\n"
+  "  str x1, [sp, #-16]!\n"       // save x1 (16-byte aligned push)
+  "  ldr x0, [x0, #8]\n"          // x0 = desc[1] = absolute addr of TLS slot
+  "  mrs x1, tpidr_el0\n"         // x1 = thread pointer (glibc's)
+  "  sub x0, x0, x1\n"            // x0 = slot_addr - tp = offset for caller
+  "  ldr x1, [sp], #16\n"         // restore x1
+  "  ret\n"
+  ".size _hybris_tlsdesc_resolver, . - _hybris_tlsdesc_resolver\n"
+);
+#endif /* __aarch64__ */
+
 #if defined(__LP64__)
 static const char* const kSystemLibDir     = "/system/lib64";
 static const char* const kVendorLibDir     = "/vendor/lib64";
@@ -2618,6 +2671,16 @@ bool soinfo::relocate(const VersionTracker& version_tracker, ElfRelIteratorT&& r
       const version_info* vi = nullptr;
 
       sym_addr = reinterpret_cast<ElfW(Addr)>(_get_hooked_symbol(sym_name, get_realpath()));
+      if (!sym_addr && _glibc_dlsym) {
+        // HYBRIS: Try glibc for standard C/POSIX symbols before bionic.
+        // Android 15 bionic uses inline TLS access (mrs tpidr_el0) which
+        // is incompatible with glibc's TLS layout. Redirecting unhooked
+        // symbols to glibc avoids executing bionic code that would crash.
+        void* glibc_sym = _glibc_dlsym(HYBRIS_RTLD_DEFAULT, sym_name);
+        if (glibc_sym) {
+          sym_addr = reinterpret_cast<ElfW(Addr)>(glibc_sym);
+        }
+      }
       if (!sym_addr) {
         if (!lookup_version_info(version_tracker, sym, sym_name, &vi)) {
           return false;
@@ -2925,6 +2988,27 @@ bool soinfo::relocate(const VersionTracker& version_tracker, ElfRelIteratorT&& r
         TRACE_TYPE(RELO, "RELO TLS_DTPREL32 *** %16" PRIx64 " <- %16" PRIx64 " - %16" PRIx64 "\n",
                    reloc, (sym_addr + addend), rel->r_offset);
         break;
+      case 1031: /* R_AARCH64_TLSDESC — Android 15 TLS descriptors.
+                   * Install our custom resolver that redirects TLS access
+                   * to the global _android_tls_fallback buffer. */
+        TRACE_TYPE(RELO, "RELO TLSDESC %16" PRIx64 " sym=%d addend=%lld\n",
+                   reloc, sym, (long long)addend);
+        {
+          auto* desc = reinterpret_cast<ElfW(Addr)*>(reloc);
+          // Compute the absolute address of the TLS variable in our buffer.
+          // For local TLS (sym=0): offset = module_base + addend
+          // For named TLS (sym!=0): offset = module_base + st_value + addend
+          size_t tls_var_offset = tls_module_offset_;
+          if (sym != 0 && s != nullptr) {
+            tls_var_offset += s->st_value;
+          }
+          tls_var_offset += addend;
+          ElfW(Addr) abs_addr = reinterpret_cast<ElfW(Addr)>(
+              _android_tls_fallback + tls_var_offset);
+          desc[0] = reinterpret_cast<ElfW(Addr)>(&_hybris_tlsdesc_resolver);
+          desc[1] = abs_addr;
+        }
+        break;
 #elif defined(__x86_64__)
       case R_X86_64_32:
         count_relocation(kRelocRelative);
@@ -3160,6 +3244,28 @@ bool soinfo::prelink_image() {
         android_relocs_size_ = d->d_un.d_val;
         break;
 
+      case DT_RELR:
+      case DT_ANDROID_RELR:
+        relr_ = reinterpret_cast<ElfW(Relr)*>(load_bias + d->d_un.d_ptr);
+        break;
+
+      case DT_RELRSZ:
+      case DT_ANDROID_RELRSZ:
+        relr_count_ = d->d_un.d_val / sizeof(ElfW(Relr));
+        break;
+
+      case DT_RELRENT:
+      case DT_ANDROID_RELRENT:
+        if (d->d_un.d_val != sizeof(ElfW(Relr))) {
+          DL_ERR("invalid DT_RELRENT: %zd", static_cast<size_t>(d->d_un.d_val));
+          return false;
+        }
+        break;
+
+      case DT_ANDROID_RELRCOUNT:
+        // ignored — informational only
+        break;
+
       case DT_ANDROID_REL:
         DL_ERR("unsupported DT_ANDROID_REL in \"%s\"", get_realpath());
         return false;
@@ -3209,6 +3315,27 @@ bool soinfo::prelink_image() {
 
       case DT_ANDROID_RELSZ:
         android_relocs_size_ = d->d_un.d_val;
+        break;
+
+      case DT_RELR:
+      case DT_ANDROID_RELR:
+        relr_ = reinterpret_cast<ElfW(Relr)*>(load_bias + d->d_un.d_ptr);
+        break;
+
+      case DT_RELRSZ:
+      case DT_ANDROID_RELRSZ:
+        relr_count_ = d->d_un.d_val / sizeof(ElfW(Relr));
+        break;
+
+      case DT_RELRENT:
+      case DT_ANDROID_RELRENT:
+        if (d->d_un.d_val != sizeof(ElfW(Relr))) {
+          DL_ERR("invalid DT_RELRENT: %zd", static_cast<size_t>(d->d_un.d_val));
+          return false;
+        }
+        break;
+
+      case DT_ANDROID_RELRCOUNT:
         break;
 
       case DT_ANDROID_RELA:
@@ -3437,6 +3564,83 @@ bool soinfo::prelink_image() {
         get_realpath(), soname_);
     // Don't call add_dlwarning because a missing DT_SONAME isn't important enough to show in the UI
   }
+
+#if defined(__aarch64__)
+  // HYBRIS: Process PT_TLS program header — allocate space in our global
+  // TLS fallback buffer for this module's thread-local variables.
+  for (size_t i = 0; i < phnum; ++i) {
+    if (phdr[i].p_type == PT_TLS) {
+      size_t tls_memsz = phdr[i].p_memsz;
+      size_t tls_filesz = phdr[i].p_filesz;
+      size_t tls_align = phdr[i].p_align;
+      if (tls_memsz == 0) break;
+
+      tls_module_offset_ = android_tls_allocate(tls_memsz, tls_align);
+      tls_size_ = tls_memsz;
+
+      // Copy .tdata (initialized TLS) content into fallback buffer,
+      // zero-fill .tbss remainder.
+      char* dest = _android_tls_fallback + tls_module_offset_;
+      if (tls_filesz > 0) {
+        const void* tdata_src = reinterpret_cast<const void*>(
+            load_bias + phdr[i].p_vaddr);
+        memcpy(dest, tdata_src, tls_filesz);
+      }
+      if (tls_memsz > tls_filesz) {
+        memset(dest + tls_filesz, 0, tls_memsz - tls_filesz);
+      }
+
+      INFO("[ \"%s\" PT_TLS: memsz=%zu filesz=%zu align=%zu offset=%zu ]",
+           get_realpath(), tls_memsz, tls_filesz, tls_align, tls_module_offset_);
+      break; // Only one PT_TLS per module
+    }
+  }
+#endif
+
+  return true;
+}
+
+void soinfo::apply_relr_reloc(ElfW(Addr) offset) {
+  ElfW(Addr) address = offset + load_bias;
+  *reinterpret_cast<ElfW(Addr)*>(address) += load_bias;
+}
+
+// Process relocations in SHT_RELR section (experimental).
+// Details of the encoding are described in this post:
+//   https://groups.google.com/d/msg/generic-abi/bX460iggiKg/Pi9aSwwABgAJ
+bool soinfo::relocate_relr() {
+  ElfW(Relr)* begin = relr_;
+  ElfW(Relr)* end = relr_ + relr_count_;
+  constexpr size_t wordsize = sizeof(ElfW(Addr));
+
+  ElfW(Addr) base = 0;
+  for (ElfW(Relr)* current = begin; current < end; ++current) {
+    ElfW(Relr) entry = *current;
+    ElfW(Addr) offset;
+
+    if ((entry&1) == 0) {
+      // Even entry: encodes the offset for next relocation.
+      offset = static_cast<ElfW(Addr)>(entry);
+      apply_relr_reloc(offset);
+      // Set base offset for subsequent bitmap entries.
+      base = offset + wordsize;
+      continue;
+    }
+
+    // Odd entry: encodes bitmap for relocations starting at base.
+    offset = base;
+    while (entry != 0) {
+      entry >>= 1;
+      if ((entry&1) != 0) {
+        apply_relr_reloc(offset);
+      }
+      offset += wordsize;
+    }
+
+    // Advance base offset by 63 words for 64-bit platforms,
+    // or 31 words for 32-bit platforms.
+    base += (8*wordsize - 1) * wordsize;
+  }
   return true;
 }
 
@@ -3505,6 +3709,13 @@ bool soinfo::link_image(const soinfo_list_t& global_group, const soinfo_list_t& 
       }
     } else {
       DL_ERR("bad android relocation header.");
+      return false;
+    }
+  }
+
+  if (relr_ != nullptr) {
+    DEBUG("[ relocating %s relr ]", get_realpath());
+    if (!relocate_relr()) {
       return false;
     }
   }

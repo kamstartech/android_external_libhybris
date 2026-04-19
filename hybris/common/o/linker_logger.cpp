@@ -115,7 +115,9 @@ void LinkerLogger::ResetState() {
   flags_ |= ParseProperty(debug_ld_all.Get());
 #endif
   // Ignore processes started without argv (http://b/33276926).
-  if (g_argv[0] == nullptr) {
+  // Also guard against g_argv itself being NULL (hybris loads o.so
+  // as a shared library without running __linker_init).
+  if (g_argv == nullptr || g_argv[0] == nullptr) {
     return;
   }
 #ifdef DISABLED_FOR_HYBRIS_SUPPORT

@@ -91,6 +91,9 @@ soinfo::soinfo(android_namespace_t* ns, const char* realpath,
   android_relocs_ = nullptr;
   android_relocs_size_ = 0;
 
+  relr_ = nullptr;
+  relr_count_ = 0;
+
   versym_ = nullptr;
   verdef_ptr_ = 0;
   verdef_cnt_ = 0;
@@ -126,7 +129,7 @@ void soinfo::set_dt_runpath(const char* path) {
 }
 
 const ElfW(Versym)* soinfo::get_versym(size_t n) const {
-  if (has_min_version(2) && versym_ != nullptr) {
+  if (versym_ != nullptr && (has_min_version(2) || version_ == 0)) {
     return versym_ + n;
   }
 
@@ -781,7 +784,12 @@ void* soinfo::to_handle() {
 }
 
 void soinfo::generate_handle() {
-  CHECK(has_min_version(3));
+  if (!has_min_version(3)) {
+    fprintf(stderr, "HYBRIS: generate_handle version fix: flags_=0x%x version_=%u name=%s — forcing v3\n",
+            flags_, version_, get_realpath());
+    flags_ |= FLAG_NEW_SOINFO;
+    version_ = SOINFO_VERSION;
+  }
   CHECK(handle_ == 0); // Make sure this is the first call
 
   // Make sure the handle is unique and does not collide
