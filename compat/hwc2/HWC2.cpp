@@ -117,11 +117,15 @@ void Device::registerCallback(ComposerCallback* callback, int32_t sequenceId) {
         return;
     }
     mRegisteredCallback = true;
-    sp<ComposerCallbackBridge> callbackBridge(
-            new ComposerCallbackBridge(callback, sequenceId));
-    mComposer->registerCallback(callbackBridge);
-    LOG_ALWAYS_FATAL_IF(!callbackBridge->HasPrimaryDisplay(),
-            "Registered composer callback but didn't get primary display");
+
+    // QTI SDM845/Android 15: calling mComposer->registerCallback via HIDL
+    // crashes the composer service (sdm::HWCSession::RegisterCallback accesses
+    // a freed mutex — the HWCSession heap object was freed when a prior HIDL
+    // client disconnected and triggered halClose()).  Skip the HIDL call and
+    // synthesize a primary display (0) hotplug directly; the server-side
+    // display was initialised at boot and remains valid.
+    ALOGE("hwc2_compat: synthesizing primary display hotplug (skipping HIDL registerCallback)");
+    onHotplug(0, HWC2::Connection::Connected);
 }
 
 // Required by HWC2 device
