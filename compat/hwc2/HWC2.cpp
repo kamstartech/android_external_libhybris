@@ -119,8 +119,7 @@ void Device::registerCallback(ComposerCallback* callback, int32_t sequenceId) {
     mRegisteredCallback = true;
 
     mComposer->registerCallback(
-            std::make_shared<ComposerCallbackBridge>(callback, sequenceId,
-                                                     mComposer->isVsyncPeriodChangedSupported()));
+            new ComposerCallbackBridge(callback, sequenceId));
 }
 
 // Required by HWC2 device
