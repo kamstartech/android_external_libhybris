@@ -18,24 +18,6 @@
  *				Jim Hodapp <jim.hodapp@canonical.com>
  */
 
-// Force stdint.h to be included first to define integer types
-// Force stdint.h to be included first to define integer types
-#include <stdint.h>
-
-#ifndef _STDINT_H
-// Fallback if stdint.h didn't work
-typedef __UINT32_TYPE__ uint32_t;
-typedef __INT32_TYPE__ int32_t;
-typedef __UINT64_TYPE__ uint64_t;
-typedef __INT64_TYPE__ int64_t;
-typedef __UINT16_TYPE__ uint16_t;
-typedef __UINT8_TYPE__ uint8_t;
-typedef __INTPTR_TYPE__ intptr_t;
-typedef __UINTPTR_TYPE__ uintptr_t;
-#endif
-
-#include <sys/types.h>
-
 #include <hybris/camera/camera_compatibility_layer.h>
 #include <hybris/camera/camera_compatibility_layer_capabilities.h>
 #include <hybris/media/media_recorder_layer.h>
