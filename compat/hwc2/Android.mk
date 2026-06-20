@@ -18,7 +18,7 @@ LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libhwc2_compat_layer
-LOCAL_SRC_FILES := HWC2.cpp ComposerHal.cpp hwc2_compatibility_layer.cpp
+LOCAL_SRC_FILES := HWC2.cpp HidlComposerHal.cpp ComposerHal.cpp hwc2_compatibility_layer.cpp
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/../../hybris/include
 
@@ -33,6 +33,7 @@ LOCAL_STATIC_LIBRARIES := \
 endif
 
 LOCAL_SHARED_LIBRARIES := \
+    android.frameworks.vr.composer@1.0 \
     android.hardware.graphics.allocator@2.0 \
     android.hardware.graphics.composer@2.1 \
     android.hardware.configstore@1.0 \
@@ -67,6 +68,65 @@ LOCAL_CFLAGS += \
     -DANDROID_VERSION_MINOR=$(ANDROID_VERSION_MINOR) \
     -DANDROID_VERSION_PATCH=$(ANDROID_VERSION_PATCH)
 
+ifeq ($(shell test $(ANDROID_VERSION_MAJOR) -le 10 && echo true),true)
+LOCAL_CFLAGS += -std=c++1z
+endif
+
+ifeq ($(shell test $(ANDROID_VERSION_MAJOR) -ge 9 && echo true),true)
+LOCAL_HEADER_LIBRARIES += \
+    android.hardware.graphics.composer@2.2-command-buffer
+
+LOCAL_SHARED_LIBRARIES += \
+    android.hardware.graphics.composer@2.2
+
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += \
+    android.hardware.graphics.composer@2.2
+endif
+
+ifeq ($(shell test $(ANDROID_VERSION_MAJOR) -ge 10 && echo true),true)
+LOCAL_HEADER_LIBRARIES += \
+    android.hardware.graphics.composer@2.3-command-buffer
+
+LOCAL_SHARED_LIBRARIES += \
+    android.hardware.graphics.composer@2.3
+
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += \
+    android.hardware.graphics.composer@2.3
+endif
+
+ifeq ($(shell test $(ANDROID_VERSION_MAJOR) -ge 11 && echo true),true)
+LOCAL_HEADER_LIBRARIES += \
+    android.hardware.graphics.composer@2.4-command-buffer
+
+LOCAL_SHARED_LIBRARIES += \
+    android.hardware.graphics.composer@2.4
+
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += \
+    android.hardware.graphics.composer@2.4
+endif
+
+ifeq ($(shell test $(ANDROID_VERSION_MAJOR) -ge 13 && echo true),true)
+LOCAL_SRC_FILES += AidlComposerHal.cpp
+
+LOCAL_HEADER_LIBRARIES += \
+    android.hardware.graphics.composer3-command-buffer
+
+LOCAL_SHARED_LIBRARIES += \
+    libbinder_ndk
+
+LOCAL_STATIC_LIBRARIES := \
+    libaidlcommonsupport
+endif
+
+ifeq ($(shell test $(ANDROID_VERSION_MAJOR) -eq 13 && echo true),true)
+LOCAL_SHARED_LIBRARIES += \
+    android.hardware.graphics.composer3-V1-ndk
+endif
+
+ifeq ($(shell test $(ANDROID_VERSION_MAJOR) -ge 14 && echo true),true)
+LOCAL_SHARED_LIBRARIES += \
+    android.hardware.graphics.composer3-V4-ndk
+endif
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -74,8 +134,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := libhybris-gralloc
 LOCAL_SRC_FILES := tests/hybris-gralloc.c \
     GrallocUsageConversion.cpp
-LOCAL_C_INCLUDES := $(LOCAL_PATH)/tests \
-    $(HYBRIS_PATH)/include
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/tests
 LOCAL_SHARED_LIBRARIES := libcutils libnativewindow
 LOCAL_CFLAGS := \
     -DANDROID_VERSION_MAJOR=$(ANDROID_VERSION_MAJOR) \
@@ -89,8 +148,6 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := libhwcnativewindow
 LOCAL_SRC_FILES := tests/hwcomposer_window.cpp \
     tests/nativewindowbase.cpp
-LOCAL_C_INCLUDES := $(LOCAL_PATH)/tests \
-    $(HYBRIS_PATH)/include
 LOCAL_SHARED_LIBRARIES := libsync liblog libnativewindow
 LOCAL_CFLAGS := \
     -DANDROID_VERSION_MAJOR=$(ANDROID_VERSION_MAJOR) \
@@ -103,8 +160,7 @@ include $(BUILD_STATIC_LIBRARY)
 include $(CLEAR_VARS)
 LOCAL_MODULE := direct_hwc2_test
 LOCAL_SRC_FILES := tests/direct_hwc2_test.cpp
-LOCAL_C_INCLUDES := $(LOCAL_PATH)/tests \
-    $(HYBRIS_PATH)/include
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/tests
 ifdef TARGET_2ND_ARCH
 LOCAL_MULTILIB := both
 LOCAL_MODULE_STEM_32 := $(if $(filter false,$(BOARD_UBUNTU_PREFER_32_BIT)),$(LOCAL_MODULE)$(TARGET_2ND_ARCH_MODULE_SUFFIX),$(LOCAL_MODULE))
@@ -122,8 +178,7 @@ LOCAL_SHARED_LIBRARIES := \
     libsync \
     libEGL \
     libGLESv2 \
-    libhwc2_compat_layer \
-    libui_compat_layer
+    libhwc2_compat_layer
 
 LOCAL_CFLAGS += -Wno-unused-parameter -DGL_GLEXT_PROTOTYPES -UNDEBUG \
     -DHWC2_USE_CPP11 -DHWC2_INCLUDE_STRINGIFICATION
