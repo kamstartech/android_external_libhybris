@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "hwc2_compat"
+#include <log/log.h>
+#include <inttypes.h>
+
 #include <ui/Fence.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
@@ -129,6 +133,7 @@ void hwc2_compat_device_register_callback(hwc2_compat_device_t *device,
 void hwc2_compat_device_on_hotplug(hwc2_compat_device_t* device,
                                     hwc2_display_t displayId, bool connected)
 {
+    ALOGD("hwc2_compat: device_on_hotplug displayId=0x%" PRIx64 " connected=%d", displayId, connected);
     device->self->onHotplug(displayId,
                             connected ? hal::Connection::CONNECTED
                                       : hal::Connection::DISCONNECTED);
@@ -279,8 +284,12 @@ hwc2_error_t hwc2_compat_display_set_client_target(hwc2_compat_display_t* displa
 hwc2_error_t hwc2_compat_display_set_power_mode(hwc2_compat_display_t* display,
                                         int mode)
 {
+    ALOGD("hwc2_compat: set_power_mode display=0x%" PRIx64 " mode=%d",
+          display->self->getId(), mode);
     hal::Error error = display->self->setPowerMode(
         static_cast<hal::PowerMode>(mode));
+    if (error != hal::Error::None)
+        ALOGE("hwc2_compat: set_power_mode FAILED error=%d", (int)error);
     return static_cast<hwc2_error_t>(error);
 }
 
@@ -297,7 +306,11 @@ hwc2_error_t hwc2_compat_display_validate(hwc2_compat_display_t* display,
 {
     const int expectedPresentTime = 0;
     const int frameIntervalNs = 0;
+    ALOGD("hwc2_compat: validate display=0x%" PRIx64, display->self->getId());
     hal::Error error = display->self->validate(expectedPresentTime, frameIntervalNs, outNumTypes, outNumRequests);
+    if (error != hal::Error::None && error != hal::Error::HasChanges)
+        ALOGE("hwc2_compat: validate FAILED display=0x%" PRIx64 " error=%d",
+              display->self->getId(), (int)error);
     return static_cast<hwc2_error_t>(error);
 }
 
