@@ -288,7 +288,7 @@ hwc2_error_t hwc2_compat_display_set_power_mode(hwc2_compat_display_t* display,
           display->self->getId(), mode);
     hal::Error error = display->self->setPowerMode(
         static_cast<hal::PowerMode>(mode));
-    if (error != hal::Error::None)
+    if (error != hal::Error::NONE)
         ALOGE("hwc2_compat: set_power_mode FAILED error=%d", (int)error);
     return static_cast<hwc2_error_t>(error);
 }
@@ -308,7 +308,7 @@ hwc2_error_t hwc2_compat_display_validate(hwc2_compat_display_t* display,
     const int frameIntervalNs = 0;
     ALOGD("hwc2_compat: validate display=0x%" PRIx64, display->self->getId());
     hal::Error error = display->self->validate(expectedPresentTime, frameIntervalNs, outNumTypes, outNumRequests);
-    if (error != hal::Error::None && error != hal::Error::HasChanges)
+    if (error != hal::Error::NONE && error != hal::Error::HAS_CHANGES)
         ALOGE("hwc2_compat: validate FAILED display=0x%" PRIx64 " error=%d",
               display->self->getId(), (int)error);
     return static_cast<hwc2_error_t>(error);
