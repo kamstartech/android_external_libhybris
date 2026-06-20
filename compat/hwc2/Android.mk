@@ -24,9 +24,9 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/../../hybris/include
 
 ifeq ($(shell test $(ANDROID_VERSION_MAJOR) -ge 9 && echo true),true)
 LOCAL_C_INCLUDES += \
-    hardware/interfaces/graphics/composer/2.1/utils/command-buffer/include
+    hardware/interfaces/graphics/composer/2.3/utils/command-buffer/include
 LOCAL_HEADER_LIBRARIES := \
-    android.hardware.graphics.composer@2.1-command-buffer
+    android.hardware.graphics.composer@2.3-command-buffer
 else
 LOCAL_STATIC_LIBRARIES := \
     libhwcomposer-command-buffer
@@ -35,6 +35,7 @@ endif
 LOCAL_SHARED_LIBRARIES := \
     android.hardware.graphics.allocator@2.0 \
     android.hardware.graphics.composer@2.1 \
+    android.hardware.graphics.composer@2.3 \
     android.hardware.configstore@1.0 \
     android.hardware.configstore-utils \
     libcutils \
@@ -57,6 +58,7 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := \
     android.hardware.graphics.allocator@2.0 \
     android.hardware.graphics.composer@2.1 \
+    android.hardware.graphics.composer@2.3 \
     libhidlbase \
     libhidltransport \
     libhwbinder

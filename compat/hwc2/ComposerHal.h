@@ -23,10 +23,10 @@
 #include <utility>
 #include <vector>
 
-#include <android/hardware/graphics/composer/2.1/IComposer.h>
+#include <android/hardware/graphics/composer/2.3/IComposer.h>
 #include <utils/StrongPointer.h>
 #if ANDROID_VERSION_MAJOR >= 9
-#include <composer-command-buffer/2.1/ComposerCommandBuffer.h>
+#include <composer-command-buffer/2.3/ComposerCommandBuffer.h>
 #else
 #include <IComposerCommandBuffer.h>
 #endif
@@ -37,21 +37,21 @@ namespace Hwc2 {
 
 using android::hardware::graphics::common::V1_0::ColorMode;
 using android::hardware::graphics::common::V1_0::ColorTransform;
-using android::hardware::graphics::common::V1_0::Dataspace;
+using android::hardware::graphics::common::V1_2::Dataspace;
 using android::hardware::graphics::common::V1_0::Hdr;
 using android::hardware::graphics::common::V1_0::PixelFormat;
 using android::hardware::graphics::common::V1_0::Transform;
 
-using android::hardware::graphics::composer::V2_1::IComposer;
+using android::hardware::graphics::composer::V2_3::IComposer;
 using android::hardware::graphics::composer::V2_1::IComposerCallback;
-using android::hardware::graphics::composer::V2_1::IComposerClient;
+using android::hardware::graphics::composer::V2_3::IComposerClient;
 using android::hardware::graphics::composer::V2_1::Error;
 using android::hardware::graphics::composer::V2_1::Display;
 using android::hardware::graphics::composer::V2_1::Layer;
 using android::hardware::graphics::composer::V2_1::Config;
 
-using android::hardware::graphics::composer::V2_1::CommandWriterBase;
-using android::hardware::graphics::composer::V2_1::CommandReaderBase;
+using android::hardware::graphics::composer::V2_3::CommandWriterBase;
+using android::hardware::graphics::composer::V2_3::CommandReaderBase;
 
 using android::hardware::kSynchronizedReadWrite;
 using android::hardware::MessageQueue;

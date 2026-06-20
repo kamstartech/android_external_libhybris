@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "hwc2_compat"
+#include <log/log.h>
+#include <inttypes.h>
+
 #include <ui/Fence.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
@@ -57,9 +61,10 @@ void HWComposerCallback::onHotplugReceived(int32_t sequenceId,
                                            HWC2::Connection connection,
                                            bool primaryDisplay)
 {
-    listener->on_hotplug_received(listener, sequenceId, display,
-                                  connection == HWC2::Connection::Connected,
-                                  primaryDisplay);
+    bool connected = (connection == HWC2::Connection::Connected);
+    ALOGE("hwc2_compat: hotplug display=0x%" PRIx64 " connected=%d primary=%d",
+          display, connected, primaryDisplay);
+    listener->on_hotplug_received(listener, sequenceId, display, connected, primaryDisplay);
 }
 
 void HWComposerCallback::onRefreshReceived(int32_t sequenceId,
@@ -115,6 +120,7 @@ void hwc2_compat_device_register_callback(hwc2_compat_device_t *device,
 void hwc2_compat_device_on_hotplug(hwc2_compat_device_t* device,
                                     hwc2_display_t displayId, bool connected)
 {
+    ALOGE("hwc2_compat: device_on_hotplug displayId=0x%" PRIx64 " connected=%d", displayId, connected);
     device->self->onHotplug(displayId,
                             static_cast<HWC2::Connection>(connected));
 }
@@ -263,8 +269,11 @@ hwc2_error_t hwc2_compat_display_set_client_target(hwc2_compat_display_t* displa
 hwc2_error_t hwc2_compat_display_set_power_mode(hwc2_compat_display_t* display,
                                         int mode)
 {
+    ALOGE("hwc2_compat: set_power_mode display=0x%" PRIx64 " mode=%d",
+          display->self->getId(), mode);
     HWC2::Error error = display->self->setPowerMode(
         static_cast<HWC2::PowerMode>(mode));
+    ALOGE("hwc2_compat: set_power_mode result=%d", (int)error);
     return static_cast<hwc2_error_t>(error);
 }
 
@@ -280,7 +289,11 @@ hwc2_error_t hwc2_compat_display_validate(hwc2_compat_display_t* display,
                                  uint32_t* outNumTypes,
                                  uint32_t* outNumRequests)
 {
+    ALOGE("hwc2_compat: validate display=0x%" PRIx64, display->self->getId());
     HWC2::Error error = display->self->validate(outNumTypes, outNumRequests);
+    if (error != HWC2::Error::None)
+        ALOGE("hwc2_compat: validate FAILED display=0x%" PRIx64 " error=%d",
+              display->self->getId(), (int)error);
     return static_cast<hwc2_error_t>(error);
 }
 

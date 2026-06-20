@@ -127,15 +127,17 @@ Composer::Composer()
         LOG_ALWAYS_FATAL("failed to get hwcomposer service");
     }
 
-    mComposer->createClient(
+    Error createClientError = Error::NO_RESOURCES;
+    mComposer->createClient_2_3(
             [&](const auto& tmpError, const auto& tmpClient)
             {
+                createClientError = tmpError;
                 if (tmpError == Error::NONE) {
                     mClient = tmpClient;
                 }
             });
     if (mClient == nullptr) {
-        LOG_ALWAYS_FATAL("failed to create composer client");
+        LOG_ALWAYS_FATAL("failed to create composer client: error=%d", (int)createClientError);
     }
 }
 
@@ -462,7 +464,7 @@ Error Composer::setOutputBuffer(Display display, const native_handle_t* buffer,
 
 Error Composer::setPowerMode(Display display, IComposerClient::PowerMode mode)
 {
-    auto ret = mClient->setPowerMode(display, mode);
+    auto ret = mClient->setPowerMode(display, static_cast<::android::hardware::graphics::composer::V2_1::IComposerClient::PowerMode>(mode));
     return unwrapRet(ret);
 }
 
@@ -723,7 +725,7 @@ Error Composer::execute()
             mReader.takeErrors();
 
         for (const auto& cmdErr : commandErrors) {
-            auto command = mWriter.getCommand(cmdErr.location);
+            auto command = static_cast<IComposerClient::Command>(mWriter.getCommand(cmdErr.location));
 
             if (command == IComposerClient::Command::VALIDATE_DISPLAY ||
                 command == IComposerClient::Command::PRESENT_DISPLAY ||
